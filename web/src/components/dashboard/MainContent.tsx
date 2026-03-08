@@ -54,17 +54,24 @@ export function MainContent() {
   const [editPlanTitle, setEditPlanTitle] = useState('')
   const [editPlanTime, setEditPlanTime] = useState('')
   const [editPlanParentId, setEditPlanParentId] = useState<string | null>(null)
+  const [editPlanCategory, setEditPlanCategory] = useState<Category>('growth')
 
   const handleStartEditPlan = (item: any) => {
     setEditingPlanId(item.id)
     setEditPlanTitle(item.title)
     setEditPlanTime(item.plannedTime || '')
     setEditPlanParentId(item.parentId || null)
+    setEditPlanCategory(item.category)
   }
 
   const handleSaveEditPlan = (id: string) => {
     if (!editPlanTitle.trim()) return
-    updateItem(id, { title: editPlanTitle, plannedTime: editPlanTime, parentId: editPlanParentId || undefined })
+    updateItem(id, { 
+        title: editPlanTitle, 
+        plannedTime: editPlanTime, 
+        parentId: editPlanParentId || undefined,
+        category: editPlanCategory
+    })
     setEditingPlanId(null)
   }
 
@@ -74,6 +81,7 @@ export function MainContent() {
   const [editLogEnd, setEditLogEnd] = useState('')
   const [editLogNote, setEditLogNote] = useState('')
   const [editLogParentId, setEditLogParentId] = useState<string | null>(null) // To update task's parent
+  const [editLogCategory, setEditLogCategory] = useState<Category>('growth') // To update task's category
   const [editingLogTaskId, setEditingLogTaskId] = useState<string | null>(null) // To track which task is being edited via log
 
   const handleStartEditLog = (log: any, task: any) => {
@@ -83,6 +91,7 @@ export function MainContent() {
     setEditLogNote(log.note || '')
     setEditingLogTaskId(task.id)
     setEditLogParentId(task.parentId || null)
+    setEditLogCategory(task.category)
   }
 
   const handleSaveEditLog = (id: string) => {
@@ -93,9 +102,12 @@ export function MainContent() {
         note: editLogNote 
     })
 
-    // Also update task parent if changed
-    if (editingLogTaskId && editLogParentId !== undefined) {
-         updateItem(editingLogTaskId, { parentId: editLogParentId || undefined })
+    // Also update task parent and category if changed
+    if (editingLogTaskId) {
+         updateItem(editingLogTaskId, { 
+             parentId: editLogParentId || undefined,
+             category: editLogCategory
+         })
     }
 
     setEditingLogId(null)
@@ -118,12 +130,15 @@ export function MainContent() {
       return { start, end }
   }
 
+  const [newItemParentId, setNewItemParentId] = useState<string>('')
+
   const handleQuickAdd = (e: React.FormEvent) => {
     e.preventDefault()
     if (!newItemTitle.trim()) return
-    addItem(newItemTitle, activeTab, 'todo', newItemPlannedTime)
+    addItem(newItemTitle, activeTab, 'todo', newItemPlannedTime, undefined, undefined, newItemParentId || undefined)
     setNewItemTitle('')
     setNewItemPlannedTime('')
+    setNewItemParentId('')
   }
 
   const handleLogTime = (e: React.FormEvent) => {
@@ -172,7 +187,7 @@ export function MainContent() {
         let start = ''
         let end = ''
         
-        // 1. Try to use planned time
+        // 1. Priority 1: Use planned time
         if (item.plannedTime) {
             const range = parseTimeRange(item.plannedTime)
             if (range) {
@@ -181,7 +196,19 @@ export function MainContent() {
             }
         }
         
-        // 2. Fallback to Now-1h -> Now
+        // 2. Priority 2: Try to parse from title (e.g., "10:00-11:00 Meeting")
+        if (!start || !end) {
+            const titleMatch = item.title.match(/(\d{1,2}:\d{2})[-~](\d{1,2}:\d{2})/)
+            if (titleMatch) {
+                 const range = parseTimeRange(`${titleMatch[1]}-${titleMatch[2]}`)
+                 if (range) {
+                     start = range.start
+                     end = range.end
+                 }
+            }
+        }
+
+        // 3. Priority 3: Fallback to Now-1h -> Now
         if (!start || !end) {
             const now = new Date()
             const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000)
@@ -208,6 +235,7 @@ export function MainContent() {
   const workTime = todayLogs.filter(l => itemCategoryMap.get(l.taskId) === 'work').reduce((acc, l) => acc + l.duration, 0);
   const growthTime = todayLogs.filter(l => itemCategoryMap.get(l.taskId) === 'growth').reduce((acc, l) => acc + l.duration, 0);
   const lifeTime = todayLogs.filter(l => itemCategoryMap.get(l.taskId) === 'life').reduce((acc, l) => acc + l.duration, 0);
+  const otherTime = todayLogs.filter(l => itemCategoryMap.get(l.taskId) === 'other').reduce((acc, l) => acc + l.duration, 0);
 
   const [isReviewOpen, setIsReviewOpen] = useState(false)
 
@@ -216,7 +244,7 @@ export function MainContent() {
       <DailyReviewModal 
         isOpen={isReviewOpen}
         onClose={() => setIsReviewOpen(false)}
-        stats={{ totalTime, workTime, growthTime, lifeTime }}
+        stats={{ totalTime, workTime, growthTime, lifeTime, otherTime }}
         completedTasks={todayItems.filter(i => i.status === 'done')}
       />
 
@@ -257,11 +285,15 @@ export function MainContent() {
             <div style={{ width: `${totalTime ? (workTime/totalTime)*100 : 0}%` }} className="bg-rose-400 transition-all duration-500" />
             <div style={{ width: `${totalTime ? (growthTime/totalTime)*100 : 0}%` }} className="bg-emerald-400 transition-all duration-500" />
             <div style={{ width: `${totalTime ? (lifeTime/totalTime)*100 : 0}%` }} className="bg-sky-400 transition-all duration-500" />
+            <div style={{ width: `${totalTime ? ((totalTime - workTime - growthTime - lifeTime)/totalTime)*100 : 0}%` }} className="bg-gray-400 transition-all duration-500" />
          </div>
          <div className="flex gap-4 text-xs font-medium text-gray-500 pt-1">
             <span className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-rose-400"/> 工作 {formatDuration(workTime)}</span>
             <span className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-emerald-400"/> 成长 {formatDuration(growthTime)}</span>
             <span className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-sky-400"/> 生活 {formatDuration(lifeTime)}</span>
+            {(totalTime - workTime - growthTime - lifeTime) > 0 && (
+                <span className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-gray-400"/> 其他 {formatDuration(totalTime - workTime - growthTime - lifeTime)}</span>
+            )}
          </div>
       </div>
 
@@ -290,6 +322,18 @@ export function MainContent() {
                     value={newItemPlannedTime}
                     onChange={(e) => setNewItemPlannedTime(e.target.value)}
                 />
+                <select
+                    value={newItemParentId}
+                    onChange={(e) => setNewItemParentId(e.target.value)}
+                    className="w-full md:w-20 bg-gray-50 rounded-md px-2 py-1 text-xs border-none focus:outline-none focus:ring-1 focus:ring-indigo-500/20 text-gray-600 truncate"
+                >
+                    <option value="">关联</option>
+                    {backlogItems.map(b => (
+                        <option key={b.id} value={b.id}>
+                            {b.category === 'work' ? '💼' : b.category === 'growth' ? '🌱' : '生活'} {b.title}
+                        </option>
+                    ))}
+                </select>
             </div>
             <select 
                 value={activeTab}
@@ -299,6 +343,7 @@ export function MainContent() {
                 <option value="growth">成长</option>
                 <option value="work">工作</option>
                 <option value="life">生活</option>
+                <option value="other">其他</option>
             </select>
             <button 
                 type="submit" 
@@ -365,6 +410,20 @@ export function MainContent() {
                                         ))}
                                     </select>
                                 </div>
+                                {/* Category Selection */}
+                                <div className="flex gap-2 items-center">
+                                    <Tag className="w-3 h-3 text-gray-400" />
+                                    <select
+                                        value={editPlanCategory}
+                                        onChange={e => setEditPlanCategory(e.target.value as Category)}
+                                        className="text-xs bg-gray-50 rounded px-2 py-1 border-none focus:outline-none focus:ring-1 focus:ring-indigo-500/20 text-gray-600"
+                                    >
+                                        <option value="growth">成长</option>
+                                        <option value="work">工作</option>
+                                        <option value="life">生活</option>
+                                        <option value="other">其他</option>
+                                    </select>
+                                </div>
                                 <div className="flex gap-2 justify-end">
                                     <button onClick={() => handleSaveEditPlan(item.id)} className="p-1 text-indigo-600 hover:bg-indigo-50 rounded"><CheckCircle className="w-4 h-4"/></button>
                                     <button onClick={() => setEditingPlanId(null)} className="p-1 text-gray-400 hover:bg-gray-50 rounded"><X className="w-4 h-4"/></button>
@@ -380,9 +439,10 @@ export function MainContent() {
                                         "px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wider",
                                         item.category === 'work' ? "bg-rose-50 text-rose-600" :
                                         item.category === 'growth' ? "bg-emerald-50 text-emerald-600" :
-                                        "bg-sky-50 text-sky-600"
+                                        item.category === 'life' ? "bg-sky-50 text-sky-600" :
+                                        "bg-gray-100 text-gray-500"
                                     )}>
-                                        {item.category === 'work' ? '工作' : item.category === 'growth' ? '成长' : '生活'}
+                                        {item.category === 'work' ? '工作' : item.category === 'growth' ? '成长' : item.category === 'life' ? '生活' : '其他'}
                                     </span>
                                     
                                     {item.plannedTime && (
@@ -471,6 +531,7 @@ export function MainContent() {
                 <option value="growth">成长</option>
                 <option value="work">工作</option>
                 <option value="life">生活</option>
+                <option value="other">其他</option>
             </select>
             <button 
                 type="submit" 
@@ -534,6 +595,20 @@ export function MainContent() {
                                                             {b.category === 'work' ? '💼' : b.category === 'growth' ? '🌱' : '生活'} {b.title}
                                                         </option>
                                                     ))}
+                                                </select>
+                                            </div>
+                                            {/* Category Selection for Log */}
+                                            <div className="flex gap-2 items-center">
+                                                <Tag className="w-3 h-3 text-gray-400" />
+                                                <select
+                                                    value={editLogCategory}
+                                                    onChange={e => setEditLogCategory(e.target.value as Category)}
+                                                    className="text-xs bg-gray-50 rounded px-2 py-1 border-none focus:outline-none focus:ring-1 focus:ring-indigo-500/20 text-gray-600"
+                                                >
+                                                    <option value="growth">成长</option>
+                                                    <option value="work">工作</option>
+                                                    <option value="life">生活</option>
+                                                    <option value="other">其他</option>
                                                 </select>
                                             </div>
                                             <div className="flex gap-2 justify-end">

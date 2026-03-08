@@ -8,6 +8,7 @@ interface DailyStats {
     workTime: number;
     growthTime: number;
     lifeTime: number;
+    otherTime?: number;
 }
 
 interface DailyReviewModalProps {
@@ -263,7 +264,7 @@ export function DailyReviewModal({ isOpen, onClose, stats, completedTasks }: Dai
                     </div>
 
                     {/* Quick Stats */}
-                    <div className="grid grid-cols-4 gap-2 mt-6">
+                    <div className="grid grid-cols-5 gap-2 mt-6">
                         <div className="bg-white/10 rounded-lg p-2 text-center backdrop-blur-sm">
                             <div className="text-xs text-indigo-100 mb-0.5">总投入</div>
                             <div className="font-mono font-bold text-lg">{formatDuration(stats.totalTime)}</div>
@@ -279,6 +280,10 @@ export function DailyReviewModal({ isOpen, onClose, stats, completedTasks }: Dai
                         <div className="bg-white/10 rounded-lg p-2 text-center backdrop-blur-sm border border-white/10">
                             <div className="text-xs text-sky-200 mb-0.5">生活</div>
                             <div className="font-mono font-bold">{formatDuration(stats.lifeTime)}</div>
+                        </div>
+                        <div className="bg-white/10 rounded-lg p-2 text-center backdrop-blur-sm border border-white/10">
+                            <div className="text-xs text-gray-200 mb-0.5">其他</div>
+                            <div className="font-mono font-bold">{formatDuration(stats.otherTime || 0)}</div>
                         </div>
                     </div>
                 </div>

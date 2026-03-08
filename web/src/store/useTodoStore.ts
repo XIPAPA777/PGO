@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-export type Category = 'work' | 'growth' | 'life';
+export type Category = 'work' | 'growth' | 'life' | 'other';
 export type TodoStatus = 'backlog' | 'todo' | 'done';
 
 export interface TodoItem {
@@ -49,7 +49,7 @@ interface TodoState {
 
   // Actions
   setSyncConfig: (config: Partial<SyncConfig>) => void; // New
-  addItem: (title: string, category: Category, status?: TodoStatus, plannedTime?: string, targetDate?: string, isUnplanned?: boolean) => string;
+  addItem: (title: string, category: Category, status?: TodoStatus, plannedTime?: string, targetDate?: string, isUnplanned?: boolean, parentId?: string) => string;
   copyToToday: (backlogItem: TodoItem, plannedTime?: string) => void;
   updateItemStatus: (id: string, status: TodoStatus) => void;
   updateItem: (id: string, updates: Partial<Omit<TodoItem, 'id' | 'createdAt'>>) => void; // New
@@ -98,7 +98,7 @@ export const useTodoStore = create<TodoState>()(
         syncConfig: { ...state.syncConfig, ...config } 
       })),
 
-      addItem: (title, category, status = 'backlog', plannedTime, targetDate, isUnplanned) => {
+      addItem: (title, category, status = 'backlog', plannedTime, targetDate, isUnplanned, parentId) => {
         const id = crypto.randomUUID();
         const { syncConfig } = get();
         const newItem: TodoItem = {
@@ -110,6 +110,7 @@ export const useTodoStore = create<TodoState>()(
           plannedTime,
           targetDate,
           isUnplanned,
+          parentId,
           createdAt: Date.now(),
         };
         set((state) => ({ items: [...state.items, newItem] }));
