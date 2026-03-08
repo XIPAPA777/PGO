@@ -356,8 +356,7 @@ export function MainContent() {
 
          {todayItems.length === 0 && (
              <div className="text-center py-8 border-2 border-dashed border-gray-100 rounded-xl bg-gray-50/30">
-                 <p className="text-sm text-gray-400">还没有计划</p>
-                 <p className="text-xs text-gray-300 mt-1">从左侧拖入或上方添加</p>
+                 <p className="text-sm font-medium text-gray-400">每天清晨，梳理你的今日计划</p>
              </div>
          )}
       
@@ -543,8 +542,8 @@ export function MainContent() {
          </form>
 
          {todayLogs.length === 0 ? (
-             <div className="text-center py-8 text-sm text-gray-400 bg-gray-50/30 rounded-xl">
-                 还没有时间记录，点击上方任务的“记录时间”按钮开始。
+             <div className="text-center py-8 border-2 border-dashed border-gray-100 rounded-xl bg-gray-50/30">
+                 <p className="text-sm font-medium text-gray-400">人对时间往往有幻觉，真实记录你每天的时间都去哪了</p>
              </div>
          ) : (
              <div className="relative border-l-2 border-gray-100 ml-3 space-y-6 py-2">
