@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import { isSameDay } from 'date-fns'
 import { useTodoStore, Category } from '@/store/useTodoStore'
 import { CheckCircle, Circle, Trash2, Plus, Clock, Sun, X, Calendar, Edit2, Sparkles, Tag, Home, NotebookPen, Link as LinkIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -22,7 +23,16 @@ export function MainContent() {
   const timeLogs = getCurrentUserLogs();
   
   // Filter for today's items
-  const todayItems = items.filter(i => i.status !== 'backlog' && !i.isUnplanned)
+  const today = new Date();
+  const todayItems = items.filter(i => {
+    if (i.status === 'backlog') return false;
+    if (i.isUnplanned) return false;
+    // For done items, only show if completed today
+    if (i.status === 'done' && i.completedAt) {
+      return isSameDay(i.completedAt, today);
+    }
+    return true;
+  });
   const backlogItems = items.filter(i => i.status === 'backlog')
 
   const [newItemTitle, setNewItemTitle] = useState('')
@@ -152,11 +162,52 @@ export function MainContent() {
     setQuickLogTimeRange('')
   }
 
-  // Balance Stats
-  const totalTime = todayItems.reduce((acc, item) => acc + getTaskDuration(item.id), 0)
-  const workTime = todayItems.filter(i => i.category === 'work').reduce((acc, item) => acc + getTaskDuration(item.id), 0)
-  const growthTime = todayItems.filter(i => i.category === 'growth').reduce((acc, item) => acc + getTaskDuration(item.id), 0)
-  const lifeTime = todayItems.filter(i => i.category === 'life').reduce((acc, item) => acc + getTaskDuration(item.id), 0)
+  // Handle task completion with auto-log
+  const handleToggleStatus = (item: any) => {
+    const newStatus = item.status === 'done' ? 'todo' : 'done'
+    updateItemStatus(item.id, newStatus)
+
+    // Auto-log time when marking as done
+    if (newStatus === 'done') {
+        let start = ''
+        let end = ''
+        
+        // 1. Try to use planned time
+        if (item.plannedTime) {
+            const range = parseTimeRange(item.plannedTime)
+            if (range) {
+                start = range.start
+                end = range.end
+            }
+        }
+        
+        // 2. Fallback to Now-1h -> Now
+        if (!start || !end) {
+            const now = new Date()
+            const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000)
+            
+            const formatTime = (d: Date) => {
+                return d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0')
+            }
+            
+            start = formatTime(oneHourAgo)
+            end = formatTime(now)
+        }
+        
+        addTimeLog(item.id, start, end, '自动记录')
+    }
+  }
+
+  // Balance Stats - based on TODAY's logs
+  const todayLogs = timeLogs.filter(log => isSameDay(log.createdAt, today));
+  
+  const totalTime = todayLogs.reduce((acc, log) => acc + log.duration, 0);
+  
+  const itemCategoryMap = new Map(items.map(i => [i.id, i.category]));
+  
+  const workTime = todayLogs.filter(l => itemCategoryMap.get(l.taskId) === 'work').reduce((acc, l) => acc + l.duration, 0);
+  const growthTime = todayLogs.filter(l => itemCategoryMap.get(l.taskId) === 'growth').reduce((acc, l) => acc + l.duration, 0);
+  const lifeTime = todayLogs.filter(l => itemCategoryMap.get(l.taskId) === 'life').reduce((acc, l) => acc + l.duration, 0);
 
   const [isReviewOpen, setIsReviewOpen] = useState(false)
 
@@ -177,7 +228,9 @@ export function MainContent() {
              <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
                今日聚焦 <Sun className="w-5 h-5 text-amber-500" />
              </h1>
-             <p className="text-sm text-gray-500">{new Date().toLocaleDateString('zh-CN', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+             <p className="text-sm text-gray-500">
+                {new Date().toLocaleDateString('zh-CN', { month: 'long', day: 'numeric' })}&nbsp;&nbsp;{new Date().toLocaleDateString('zh-CN', { weekday: 'long' })}
+             </p>
            </div>
         </div>
         <div className="flex items-center gap-2">
@@ -270,7 +323,7 @@ export function MainContent() {
                     item.status === 'done' ? "bg-gray-50/80 border-transparent opacity-75" : "hover:shadow-md"
                 )}>
                     <button 
-                        onClick={() => updateItemStatus(item.id, item.status === 'done' ? 'todo' : 'done')}
+                        onClick={() => handleToggleStatus(item)}
                         className={cn("mt-1 text-gray-300 hover:text-emerald-500 transition-colors", item.status === 'done' && "text-emerald-500")}
                     >
                         {item.status === 'done' ? <CheckCircle className="w-5 h-5" /> : <Circle className="w-5 h-5" />}
@@ -387,7 +440,7 @@ export function MainContent() {
          <div className="flex items-center gap-2 pb-2">
             <h2 className="text-lg font-bold text-gray-800">✅ 实际时间记录</h2>
             <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
-                {timeLogs.filter(log => todayItems.some(i => i.id === log.taskId)).length}
+                {todayLogs.length}
             </span>
          </div>
 
@@ -428,13 +481,13 @@ export function MainContent() {
             </button>
          </form>
 
-         {timeLogs.length === 0 ? (
+         {todayLogs.length === 0 ? (
              <div className="text-center py-8 text-sm text-gray-400 bg-gray-50/30 rounded-xl">
                  还没有时间记录，点击上方任务的“记录时间”按钮开始。
              </div>
          ) : (
              <div className="relative border-l-2 border-gray-100 ml-3 space-y-6 py-2">
-                 {timeLogs
+                 {todayLogs
                     .sort((a, b) => b.createdAt - a.createdAt)
                     .map(log => {
                         const task = items.find(i => i.id === log.taskId) // Look in all items to include unplanned

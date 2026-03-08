@@ -1,6 +1,6 @@
 
 import { useState } from 'react'
-import { X, Check, Loader2, Award, Calendar, Sparkles } from 'lucide-react'
+import { X, Check, Loader2, Award, Calendar, Sparkles, Info } from 'lucide-react'
 import { useTodoStore, TodoItem } from '@/store/useTodoStore'
 
 interface DailyStats {
@@ -325,14 +325,9 @@ export function DailyReviewModal({ isOpen, onClose, stats, completedTasks }: Dai
                     </div>
 
                     {/* Sync Info */}
-                    <div className="bg-blue-50 text-blue-800 p-4 rounded-xl text-xs leading-relaxed border border-blue-100 mb-4">
-                        <h3 className="font-bold mb-1 flex items-center gap-2">🔄 同步说明</h3>
-                        <ul className="list-disc ml-4 space-y-1 text-blue-700/80">
-                            <li>点击同步后，系统将执行“日结”操作。</li>
-                            <li><b>蓄水池 (Sheet 1)</b>: 将全量更新为当前最新的待办列表。</li>
-                            <li><b>每日任务 (Sheet 2)</b>: 将把今日的所有任务执行情况追加写入。</li>
-                            <li><b>每日洞察 (Sheet 3)</b>: 记录今日的复盘与评分。</li>
-                        </ul>
+                    <div className="flex items-center justify-center gap-1.5 text-xs text-gray-400 px-1 mb-4">
+                        <Info className="w-3.5 h-3.5" />
+                        <p>点击同步后，系统将自动同步数据至飞书多维表格，实现长期数据沉淀。</p>
                     </div>
 
                     {/* Action */}
