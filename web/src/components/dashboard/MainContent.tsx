@@ -1,11 +1,175 @@
 'use client'
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { isSameDay } from 'date-fns'
-import { useTodoStore, Category } from '@/store/useTodoStore'
-import { CheckCircle, Circle, Trash2, Plus, Clock, Sun, X, Calendar, Edit2, Sparkles, Tag, Home, NotebookPen, Link as LinkIcon } from 'lucide-react'
+import { useTodoStore, Category, TodoItem } from '@/store/useTodoStore'
+import { CheckCircle, Circle, Trash2, Plus, Clock, Sun, X, Edit2, Sparkles, Tag, Home, Link as LinkIcon, GripVertical } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
 import { DailyReviewModal } from './DailyReviewModal'
+
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+
+interface SortableTodayItemProps {
+  item: TodoItem;
+  children: React.ReactNode;
+}
+
+function SortableTodayItem({ item, children }: SortableTodayItemProps) {
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: item.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className="relative">
+      <div
+        {...attributes}
+        {...listeners}
+        className="absolute left-0 top-0 bottom-0 w-6 flex items-center justify-center cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 transition-colors touch-none"
+      >
+        <GripVertical className="w-4 h-4" />
+      </div>
+      <div className="pl-6">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// TimeInput: 单个时间输入，支持直接输入 + 点击图标弹出自定义picker
+function TimeInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [showPicker, setShowPicker] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [hours, minutes] = (value || '').split(':');
+
+  const handleHoursChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let h = e.target.value.replace(/\D/g, '').slice(0, 2);
+    if (parseInt(h) > 23) h = '23';
+    onChange(`${h.padStart(2, '0')}:${minutes || '00'}`);
+  };
+
+  const handleMinutesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let m = e.target.value.replace(/\D/g, '').slice(0, 2);
+    if (parseInt(m) > 59) m = '59';
+    onChange(`${hours || '00'}:${m.padStart(2, '0')}`);
+  };
+
+  const selectTime = (h: string, m: string) => {
+    onChange(`${h}:${m}`);
+    setShowPicker(false);
+  };
+
+  // 点击外部关闭
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setShowPicker(false);
+      }
+    };
+    if (showPicker) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showPicker]);
+
+  const hoursList = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, '0'));
+  const minutesList = ['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'];
+
+  return (
+    <div ref={containerRef} className="relative flex items-center bg-white border border-gray-200 rounded px-2 py-1">
+      <input
+        type="text"
+        inputMode="numeric"
+        value={hours || ''}
+        onChange={handleHoursChange}
+        placeholder="00"
+        maxLength={2}
+        className="w-5 text-center text-xs text-gray-600 bg-transparent border-none focus:outline-none placeholder:text-gray-300"
+      />
+      <span className="text-xs text-gray-600">:</span>
+      <input
+        type="text"
+        inputMode="numeric"
+        value={minutes || ''}
+        onChange={handleMinutesChange}
+        placeholder="00"
+        maxLength={2}
+        className="w-5 text-center text-xs text-gray-600 bg-transparent border-none focus:outline-none placeholder:text-gray-300"
+      />
+      <button
+        type="button"
+        onClick={() => setShowPicker(!showPicker)}
+        className="ml-1 p-0.5 hover:bg-gray-100 rounded transition-colors"
+      >
+        <Clock className="w-3.5 h-3.5 text-gray-300 hover:text-gray-500" />
+      </button>
+
+      {/* 自定义时间选择器 */}
+      {showPicker && (
+        <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 flex overflow-hidden">
+          {/* 小时列 */}
+          <div className="w-12 max-h-48 overflow-y-auto border-r border-gray-100">
+            {hoursList.map(h => (
+              <button
+                key={h}
+                type="button"
+                onClick={() => selectTime(h, minutes || '00')}
+                className={cn(
+                  "w-full py-1.5 text-xs text-center transition-colors",
+                  hours === h
+                    ? "bg-gray-100 text-gray-900 font-medium"
+                    : "text-gray-500 hover:bg-gray-50"
+                )}
+              >
+                {h}
+              </button>
+            ))}
+          </div>
+          {/* 分钟列 */}
+          <div className="w-12 max-h-48 overflow-y-auto">
+            {minutesList.map(m => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => selectTime(hours || '00', m)}
+                className={cn(
+                  "w-full py-1.5 text-xs text-center transition-colors",
+                  minutes === m
+                    ? "bg-gray-100 text-gray-900 font-medium"
+                    : "text-gray-500 hover:bg-gray-50"
+                )}
+              >
+                {m}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface TimeRangeInputProps {
+  startTime: string;
+  endTime: string;
+  onStartChange: (value: string) => void;
+  onEndChange: (value: string) => void;
+  className?: string;
+}
+
+function TimeRangeInput({ startTime, endTime, onStartChange, onEndChange, className }: TimeRangeInputProps) {
+  return (
+    <div className={cn("flex items-center gap-1.5", className)}>
+      <TimeInput value={startTime} onChange={onStartChange} />
+      <span className="text-gray-300 text-xs">-</span>
+      <TimeInput value={endTime} onChange={onEndChange} />
+    </div>
+  );
+}
 
 function formatDuration(minutes: number) {
   const h = Math.floor(minutes / 60)
@@ -17,11 +181,11 @@ function formatDuration(minutes: number) {
 }
 
 export function MainContent() {
-  const { getCurrentUserItems, getCurrentUserLogs, getTaskDuration, updateItemStatus, deleteItem, addItem, addTimeLog, updateTimeLog, deleteTimeLog, updateItem } = useTodoStore()
-  
+  const { getCurrentUserItems, getCurrentUserLogs, getTaskDuration, updateItemStatus, deleteItem, addItem, addTimeLog, updateTimeLog, deleteTimeLog, updateItem, reorderTodayItems } = useTodoStore()
+
   const items = getCurrentUserItems();
   const timeLogs = getCurrentUserLogs();
-  
+
   // Filter for today's items
   const today = new Date();
   const todayItems = items.filter(i => {
@@ -32,43 +196,79 @@ export function MainContent() {
       return isSameDay(i.completedAt, today);
     }
     return true;
+  }).sort((a, b) => {
+    // Sort by sortOrder first, then by createdAt
+    const orderA = a.sortOrder ?? Number.MAX_SAFE_INTEGER;
+    const orderB = b.sortOrder ?? Number.MAX_SAFE_INTEGER;
+    if (orderA !== orderB) return orderA - orderB;
+    return a.createdAt - b.createdAt;
   });
   const backlogItems = items.filter(i => i.status === 'backlog')
 
+  // DnD sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (active.id !== over?.id) {
+      const oldIndex = todayItems.findIndex((item) => item.id === active.id);
+      const newIndex = todayItems.findIndex((item) => item.id === over?.id);
+      const newItems = arrayMove(todayItems, oldIndex, newIndex);
+      reorderTodayItems(newItems.map(item => item.id));
+    }
+  };
+
   const [newItemTitle, setNewItemTitle] = useState('')
   const [activeTab, setActiveTab] = useState<Category>('growth')
-  const [newItemPlannedTime, setNewItemPlannedTime] = useState('')
+  const [newItemStartTime, setNewItemStartTime] = useState('')
+  const [newItemEndTime, setNewItemEndTime] = useState('')
 
   // Log Time Modal State
   const [loggingTaskId, setLoggingTaskId] = useState<string | null>(null)
-  const [logTimeRange, setLogTimeRange] = useState('')
+  const [logStartTime, setLogStartTime] = useState('')
+  const [logEndTime, setLogEndTime] = useState('')
   const [logNote, setLogNote] = useState('')
 
   // Quick Log State
   const [quickLogTitle, setQuickLogTitle] = useState('')
-  const [quickLogTimeRange, setQuickLogTimeRange] = useState('')
+  const [quickLogStartTime, setQuickLogStartTime] = useState('')
+  const [quickLogEndTime, setQuickLogEndTime] = useState('')
   const [quickLogCategory, setQuickLogCategory] = useState<Category>('growth')
+  const [quickLogParentId, setQuickLogParentId] = useState<string>('')
 
   // Edit Plan Item State
   const [editingPlanId, setEditingPlanId] = useState<string | null>(null)
   const [editPlanTitle, setEditPlanTitle] = useState('')
-  const [editPlanTime, setEditPlanTime] = useState('')
+  const [editPlanStartTime, setEditPlanStartTime] = useState('')
+  const [editPlanEndTime, setEditPlanEndTime] = useState('')
   const [editPlanParentId, setEditPlanParentId] = useState<string | null>(null)
   const [editPlanCategory, setEditPlanCategory] = useState<Category>('growth')
 
   const handleStartEditPlan = (item: any) => {
     setEditingPlanId(item.id)
     setEditPlanTitle(item.title)
-    setEditPlanTime(item.plannedTime || '')
+    // Parse plannedTime "14:00-15:00" to separate start/end
+    if (item.plannedTime) {
+      const parts = item.plannedTime.replace(/[：~—]/g, ':').replace('-', '-').split('-')
+      setEditPlanStartTime(parts[0]?.trim() || '')
+      setEditPlanEndTime(parts[1]?.trim() || '')
+    } else {
+      setEditPlanStartTime('')
+      setEditPlanEndTime('')
+    }
     setEditPlanParentId(item.parentId || null)
     setEditPlanCategory(item.category)
   }
 
   const handleSaveEditPlan = (id: string) => {
     if (!editPlanTitle.trim()) return
-    updateItem(id, { 
-        title: editPlanTitle, 
-        plannedTime: editPlanTime, 
+    const plannedTime = editPlanStartTime && editPlanEndTime ? `${editPlanStartTime}-${editPlanEndTime}` : ''
+    updateItem(id, {
+        title: editPlanTitle,
+        plannedTime: plannedTime || undefined,
         parentId: editPlanParentId || undefined,
         category: editPlanCategory
     })
@@ -135,46 +335,41 @@ export function MainContent() {
   const handleQuickAdd = (e: React.FormEvent) => {
     e.preventDefault()
     if (!newItemTitle.trim()) return
-    addItem(newItemTitle, activeTab, 'todo', newItemPlannedTime, undefined, undefined, newItemParentId || undefined)
+    const plannedTime = newItemStartTime && newItemEndTime ? `${newItemStartTime}-${newItemEndTime}` : undefined
+    addItem(newItemTitle, activeTab, 'todo', plannedTime, undefined, undefined, newItemParentId || undefined)
     setNewItemTitle('')
-    setNewItemPlannedTime('')
+    setNewItemStartTime('')
+    setNewItemEndTime('')
     setNewItemParentId('')
   }
 
   const handleLogTime = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!loggingTaskId || !logTimeRange) return
-    
-    const parsed = parseTimeRange(logTimeRange)
-    if (!parsed) {
-        alert('请输入正确的时间格式，例如: 10:00-11:00')
-        return
-    }
+    if (!loggingTaskId || !logStartTime || !logEndTime) return
 
-    addTimeLog(loggingTaskId, parsed.start, parsed.end, logNote)
+    addTimeLog(loggingTaskId, logStartTime, logEndTime, logNote)
+    // Auto-mark task as done after recording time
+    updateItemStatus(loggingTaskId, 'done')
     setLoggingTaskId(null)
-    setLogTimeRange('')
+    setLogStartTime('')
+    setLogEndTime('')
     setLogNote('')
   }
 
   const handleQuickLog = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!quickLogTitle.trim() || !quickLogTimeRange) return
-    
-    const parsed = parseTimeRange(quickLogTimeRange)
-    if (!parsed) {
-        alert('请输入正确的时间格式，例如: 10:00-11:00')
-        return
-    }
+    if (!quickLogTitle.trim() || !quickLogStartTime || !quickLogEndTime) return
 
-    // 1. Create done task
-    const taskId = addItem(quickLogTitle, quickLogCategory, 'done', undefined, undefined, true)
+    // 1. Create done task with optional parent
+    const taskId = addItem(quickLogTitle, quickLogCategory, 'done', undefined, undefined, true, quickLogParentId || undefined)
     // 2. Add time log
-    addTimeLog(taskId, parsed.start, parsed.end)
-    
+    addTimeLog(taskId, quickLogStartTime, quickLogEndTime)
+
     // Reset
     setQuickLogTitle('')
-    setQuickLogTimeRange('')
+    setQuickLogStartTime('')
+    setQuickLogEndTime('')
+    setQuickLogParentId('')
   }
 
   // Handle task completion with auto-log
@@ -305,27 +500,20 @@ export function MainContent() {
          </div>
 
          {/* Quick Add Form */}
-         <form onSubmit={handleQuickAdd} className="flex items-center gap-2 p-3 bg-white border border-gray-200 rounded-xl shadow-sm focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500 transition-all">
-            <Plus className="w-5 h-5 text-gray-400 flex-shrink-0" />
-            <div className="flex-1 flex flex-col md:flex-row gap-2">
-                <input 
-                    type="text" 
-                    placeholder="添加一个任务..." 
+         <form onSubmit={handleQuickAdd} className="flex flex-col gap-2 p-3 bg-white border border-gray-200 rounded-xl shadow-sm focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500 transition-all">
+            <div className="flex items-center gap-2">
+                <Plus className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                <input
+                    type="text"
+                    placeholder="添加一个任务..."
                     className="flex-1 bg-transparent border-none focus:outline-none placeholder:text-gray-400 text-gray-700 text-sm"
                     value={newItemTitle}
                     onChange={(e) => setNewItemTitle(e.target.value)}
                 />
-                <input 
-                    type="text" 
-                    placeholder="计划时间 (选填, 如 14:00-15:00)" 
-                    className="w-full md:w-48 bg-gray-50 rounded-md px-2 py-1 text-xs border-none focus:outline-none focus:ring-1 focus:ring-indigo-500/20 text-gray-600"
-                    value={newItemPlannedTime}
-                    onChange={(e) => setNewItemPlannedTime(e.target.value)}
-                />
                 <select
                     value={newItemParentId}
                     onChange={(e) => setNewItemParentId(e.target.value)}
-                    className="w-full md:w-20 bg-gray-50 rounded-md px-2 py-1 text-xs border-none focus:outline-none focus:ring-1 focus:ring-indigo-500/20 text-gray-600 truncate"
+                    className="h-7 text-xs bg-white border border-gray-200 rounded px-2 focus:outline-none text-gray-400 cursor-pointer hover:border-gray-300"
                 >
                     <option value="">关联</option>
                     {backlogItems.map(b => (
@@ -334,24 +522,33 @@ export function MainContent() {
                         </option>
                     ))}
                 </select>
+                <select
+                    value={activeTab}
+                    onChange={(e) => setActiveTab(e.target.value as Category)}
+                    className="h-7 text-xs bg-gray-50 border border-gray-200 rounded px-2 focus:outline-none text-gray-600 font-medium cursor-pointer hover:bg-gray-100"
+                >
+                    <option value="growth">成长</option>
+                    <option value="work">工作</option>
+                    <option value="life">生活</option>
+                    <option value="other">其他</option>
+                </select>
+                <button
+                    type="submit"
+                    className="bg-gray-900 text-white p-1.5 rounded-lg hover:bg-gray-800 transition-colors"
+                    title="添加"
+                >
+                    <Plus className="w-4 h-4" />
+                </button>
             </div>
-            <select 
-                value={activeTab}
-                onChange={(e) => setActiveTab(e.target.value as Category)}
-                className="text-xs bg-gray-50 border border-gray-200 rounded-md px-2 py-1.5 focus:outline-none text-gray-600 font-medium cursor-pointer hover:bg-gray-100"
-            >
-                <option value="growth">成长</option>
-                <option value="work">工作</option>
-                <option value="life">生活</option>
-                <option value="other">其他</option>
-            </select>
-            <button 
-                type="submit" 
-                className="bg-gray-900 text-white p-1.5 rounded-lg hover:bg-gray-800 transition-colors"
-                title="添加"
-            >
-                <Plus className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-2 pl-7">
+                <span className="text-xs text-gray-400">计划时间:</span>
+                <TimeRangeInput
+                    startTime={newItemStartTime}
+                    endTime={newItemEndTime}
+                    onStartChange={setNewItemStartTime}
+                    onEndChange={setNewItemEndTime}
+                />
+            </div>
          </form>
 
          {todayItems.length === 0 && (
@@ -359,13 +556,16 @@ export function MainContent() {
                  <p className="text-sm font-medium text-gray-400">每天清晨，梳理你的今日计划</p>
              </div>
          )}
-      
-         <div className="grid gap-3">
-            {todayItems.map(item => (
-                <div key={item.id} className={cn(
-                    "flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-100 shadow-sm group hover:border-gray-300 transition-all",
-                    item.status === 'done' ? "bg-gray-50/80 border-transparent opacity-75" : "hover:shadow-md"
-                )}>
+
+         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+           <SortableContext items={todayItems.map(i => i.id)} strategy={verticalListSortingStrategy}>
+             <div className="grid gap-3">
+                {todayItems.map(item => (
+                  <SortableTodayItem key={item.id} item={item}>
+                    <div className={cn(
+                        "flex items-start gap-3 p-3 bg-white rounded-lg border border-gray-100 shadow-sm group hover:border-gray-300 transition-all",
+                        item.status === 'done' ? "bg-gray-50/80 border-transparent opacity-75" : "hover:shadow-md"
+                    )}>
                     <button 
                         onClick={() => handleToggleStatus(item)}
                         className={cn("mt-1 text-gray-300 hover:text-emerald-500 transition-colors", item.status === 'done' && "text-emerald-500")}
@@ -376,21 +576,19 @@ export function MainContent() {
                     <div className="flex-1 min-w-0">
                         {editingPlanId === item.id ? (
                             <div className="space-y-2">
-                                <input 
-                                    type="text" 
-                                    value={editPlanTitle} 
+                                <input
+                                    type="text"
+                                    value={editPlanTitle}
                                     onChange={e => setEditPlanTitle(e.target.value)}
                                     className="w-full text-sm border-b border-indigo-500 focus:outline-none bg-transparent"
                                     autoFocus
                                 />
                                 <div className="flex gap-2 items-center">
-                                    <Clock className="w-3 h-3 text-gray-400" />
-                                    <input 
-                                        type="text" 
-                                        value={editPlanTime} 
-                                        onChange={e => setEditPlanTime(e.target.value)}
-                                        placeholder="计划时间 (如 14:00-15:00)"
-                                        className="text-xs bg-gray-50 rounded px-2 py-1 border-none focus:outline-none focus:ring-1 focus:ring-indigo-500/20"
+                                    <TimeRangeInput
+                                        startTime={editPlanStartTime}
+                                        endTime={editPlanEndTime}
+                                        onStartChange={setEditPlanStartTime}
+                                        onEndChange={setEditPlanEndTime}
                                     />
                                 </div>
                                 {/* Parent Task Selection */}
@@ -489,9 +687,12 @@ export function MainContent() {
                             </button>
                         </div>
                     )}
-                </div>
-            ))}
-         </div>
+                    </div>
+                  </SortableTodayItem>
+                ))}
+             </div>
+           </SortableContext>
+         </DndContext>
       </div>
 
       {/* SECTION 2: 实际记录 (Actual) */}
@@ -504,41 +705,55 @@ export function MainContent() {
          </div>
 
          {/* Quick Log Form */}
-         <form onSubmit={handleQuickLog} className="flex items-center gap-2 p-3 bg-white border border-gray-200 rounded-xl shadow-sm focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500 transition-all mb-4">
-            <Clock className="w-5 h-5 text-gray-400 flex-shrink-0" />
-            <div className="flex-1 flex flex-col md:flex-row gap-2">
-                <input 
-                    type="text" 
-                    placeholder="刚刚做了什么..." 
+         <form onSubmit={handleQuickLog} className="flex flex-col gap-2 p-3 bg-white border border-gray-200 rounded-xl shadow-sm focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500 transition-all mb-4">
+            <div className="flex items-center gap-2">
+                <Clock className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                <input
+                    type="text"
+                    placeholder="刚刚做了什么..."
                     className="flex-1 bg-transparent border-none focus:outline-none placeholder:text-gray-400 text-gray-700 text-sm"
                     value={quickLogTitle}
                     onChange={(e) => setQuickLogTitle(e.target.value)}
                 />
-                <input 
-                    type="text" 
-                    placeholder="时间段 (如 10:00-11:00)"
-                    className="w-full md:w-48 bg-gray-50 rounded-md px-2 py-1 text-xs border-none focus:outline-none focus:ring-1 focus:ring-indigo-500/20 text-gray-600"
-                    value={quickLogTimeRange}
-                    onChange={(e) => setQuickLogTimeRange(e.target.value)}
+                <select
+                    value={quickLogParentId}
+                    onChange={(e) => setQuickLogParentId(e.target.value)}
+                    className="h-7 text-xs bg-white border border-gray-200 rounded px-2 focus:outline-none text-gray-400 cursor-pointer hover:border-gray-300"
+                >
+                    <option value="">关联</option>
+                    {backlogItems.map(b => (
+                        <option key={b.id} value={b.id}>
+                            {b.category === 'work' ? '💼' : b.category === 'growth' ? '🌱' : '生活'} {b.title}
+                        </option>
+                    ))}
+                </select>
+                <select
+                    value={quickLogCategory}
+                    onChange={(e) => setQuickLogCategory(e.target.value as Category)}
+                    className="h-7 text-xs bg-gray-50 border border-gray-200 rounded px-2 focus:outline-none text-gray-600 font-medium cursor-pointer hover:bg-gray-100"
+                >
+                    <option value="growth">成长</option>
+                    <option value="work">工作</option>
+                    <option value="life">生活</option>
+                    <option value="other">其他</option>
+                </select>
+                <button
+                    type="submit"
+                    className="bg-gray-900 text-white p-1.5 rounded-lg hover:bg-gray-800 transition-colors"
+                    title="快速记录"
+                >
+                    <Plus className="w-4 h-4" />
+                </button>
+            </div>
+            <div className="flex items-center gap-2 pl-7">
+                <span className="text-xs text-gray-400">时间段:</span>
+                <TimeRangeInput
+                    startTime={quickLogStartTime}
+                    endTime={quickLogEndTime}
+                    onStartChange={setQuickLogStartTime}
+                    onEndChange={setQuickLogEndTime}
                 />
             </div>
-            <select 
-                value={quickLogCategory}
-                onChange={(e) => setQuickLogCategory(e.target.value as Category)}
-                className="text-xs bg-gray-50 border border-gray-200 rounded-md px-2 py-1.5 focus:outline-none text-gray-600 font-medium cursor-pointer hover:bg-gray-100"
-            >
-                <option value="growth">成长</option>
-                <option value="work">工作</option>
-                <option value="life">生活</option>
-                <option value="other">其他</option>
-            </select>
-            <button 
-                type="submit" 
-                className="bg-gray-900 text-white p-1.5 rounded-lg hover:bg-gray-800 transition-colors"
-                title="快速记录"
-            >
-                <Plus className="w-4 h-4" />
-            </button>
          </form>
 
          {todayLogs.length === 0 ? (
@@ -558,24 +773,15 @@ export function MainContent() {
                                 <div className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm relative">
                                     {editingLogId === log.id ? (
                                         <div className="space-y-2">
-                                            <div className="flex gap-2">
-                                                <input 
-                                                    type="time" 
-                                                    value={editLogStart} 
-                                                    onChange={e => setEditLogStart(e.target.value)}
-                                                    className="bg-gray-50 rounded px-2 py-1 text-xs"
-                                                />
-                                                <span className="text-gray-300">-</span>
-                                                <input 
-                                                    type="time" 
-                                                    value={editLogEnd} 
-                                                    onChange={e => setEditLogEnd(e.target.value)}
-                                                    className="bg-gray-50 rounded px-2 py-1 text-xs"
-                                                />
-                                            </div>
-                                            <input 
-                                                type="text" 
-                                                value={editLogNote} 
+                                            <TimeRangeInput
+                                                startTime={editLogStart}
+                                                endTime={editLogEnd}
+                                                onStartChange={setEditLogStart}
+                                                onEndChange={setEditLogEnd}
+                                            />
+                                            <input
+                                                type="text"
+                                                value={editLogNote}
                                                 onChange={e => setEditLogNote(e.target.value)}
                                                 className="w-full text-xs border-b border-gray-200 focus:outline-none"
                                                 placeholder="备注"
@@ -667,21 +873,19 @@ export function MainContent() {
                 <h3 className="font-bold text-gray-800 mb-4">记录时间</h3>
                 <form onSubmit={handleLogTime} className="space-y-4">
                     <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">时间段</label>
-                        <input 
-                            type="text" 
-                            placeholder="例如: 10:00-11:00" 
-                            className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                            value={logTimeRange}
-                            onChange={e => setLogTimeRange(e.target.value)}
-                            autoFocus
+                        <label className="block text-xs font-medium text-gray-500 mb-2">时间段</label>
+                        <TimeRangeInput
+                            startTime={logStartTime}
+                            endTime={logEndTime}
+                            onStartChange={setLogStartTime}
+                            onEndChange={setLogEndTime}
                         />
                     </div>
                     <div>
                         <label className="block text-xs font-medium text-gray-500 mb-1">备注 (可选)</label>
-                        <input 
-                            type="text" 
-                            placeholder="完成了什么..." 
+                        <input
+                            type="text"
+                            placeholder="完成了什么..."
                             className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                             value={logNote}
                             onChange={e => setLogNote(e.target.value)}

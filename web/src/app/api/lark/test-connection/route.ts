@@ -29,6 +29,13 @@ export async function POST(request: Request) {
         const res = await client.request(`/bitable/v1/apps/${larkBaseToken}/tables`);
         tables = res.items || [];
     } catch (e: any) {
+        // 针对常见错误码给出友好提示
+        if (e.message?.includes('91403') || e.message?.includes('Forbidden')) {
+            return NextResponse.json({
+                success: false,
+                message: '应用无权访问此多维表格。请打开多维表格 → 点击右上角「...」→「添加协作者」→ 搜索并添加您的应用名称（权限选"可编辑"）'
+            }, { status: 403 });
+        }
         return NextResponse.json({ success: false, message: `Failed to access Base: ${e.message}` }, { status: 400 });
     }
 
