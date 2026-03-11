@@ -44,18 +44,94 @@ function SortableTodayItem({ item, children }: SortableTodayItemProps) {
 function TimeInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const [showPicker, setShowPicker] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const minutesRef = useRef<HTMLInputElement>(null);
   const [hours, minutes] = (value || '').split(':');
 
+  // 跳转标记，防止blur时覆盖正确的值
+  const skipBlurRef = useRef(false);
+
+  // 小时输入处理
   const handleHoursChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let h = e.target.value.replace(/\D/g, '').slice(0, 2);
-    if (parseInt(h) > 23) h = '23';
-    onChange(`${h.padStart(2, '0')}:${minutes || '00'}`);
+
+    if (h === '') {
+      onChange(`:${minutes || '00'}`);
+      return;
+    }
+
+    const num = parseInt(h);
+
+    // 智能跳转: 首位数字 > 2，自动补0并跳转到分钟
+    if (h.length === 1 && num > 2) {
+      h = '0' + h;
+      onChange(`${h}:${minutes || '00'}`);
+      skipBlurRef.current = true;
+      setTimeout(() => {
+        minutesRef.current?.focus();
+        minutesRef.current?.select();
+        skipBlurRef.current = false;
+      }, 0);
+      return;
+    }
+
+    // 范围验证 (仅2位时)
+    if (h.length === 2 && num > 23) {
+      h = '23';
+    }
+
+    // 更新值
+    onChange(`${h}:${minutes || '00'}`);
+
+    // 满2位自动跳转（延迟执行，等待React渲染完成）
+    if (h.length === 2) {
+      skipBlurRef.current = true;
+      setTimeout(() => {
+        minutesRef.current?.focus();
+        minutesRef.current?.select();
+        skipBlurRef.current = false;
+      }, 0);
+    }
   };
 
+  // 小时失去焦点 - 格式化
+  const handleHoursBlur = () => {
+    if (skipBlurRef.current) return; // 跳过自动跳转触发的blur
+    let h = hours || '0';
+    if (parseInt(h) > 23) h = '23';
+    h = h.padStart(2, '0');
+    onChange(`${h}:${(minutes || '0').padStart(2, '0')}`);
+  };
+
+  // 分钟输入处理
   const handleMinutesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let m = e.target.value.replace(/\D/g, '').slice(0, 2);
+
+    if (m === '') {
+      onChange(`${hours || '00'}:`);
+      return;
+    }
+
+    const num = parseInt(m);
+
+    // 智能补0: 首位数字 > 5，自动补0
+    if (m.length === 1 && num > 5) {
+      m = '0' + m;
+    }
+
+    // 范围验证 (仅2位时)
+    if (m.length === 2 && num > 59) {
+      m = '59';
+    }
+
+    onChange(`${hours || '00'}:${m}`);
+  };
+
+  // 分钟失去焦点 - 格式化
+  const handleMinutesBlur = () => {
+    let m = minutes || '0';
     if (parseInt(m) > 59) m = '59';
-    onChange(`${hours || '00'}:${m.padStart(2, '0')}`);
+    m = m.padStart(2, '0');
+    onChange(`${(hours || '0').padStart(2, '0')}:${m}`);
   };
 
   const selectTime = (h: string, m: string) => {
@@ -86,16 +162,19 @@ function TimeInput({ value, onChange }: { value: string; onChange: (v: string) =
         inputMode="numeric"
         value={hours || ''}
         onChange={handleHoursChange}
+        onBlur={handleHoursBlur}
         placeholder="00"
         maxLength={2}
         className="w-5 text-center text-xs text-gray-600 bg-transparent border-none focus:outline-none placeholder:text-gray-300"
       />
       <span className="text-xs text-gray-600">:</span>
       <input
+        ref={minutesRef}
         type="text"
         inputMode="numeric"
         value={minutes || ''}
         onChange={handleMinutesChange}
+        onBlur={handleMinutesBlur}
         placeholder="00"
         maxLength={2}
         className="w-5 text-center text-xs text-gray-600 bg-transparent border-none focus:outline-none placeholder:text-gray-300"
