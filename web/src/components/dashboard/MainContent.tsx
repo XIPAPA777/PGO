@@ -592,14 +592,30 @@ export function MainContent() {
                 <select
                     value={newItemParentId}
                     onChange={(e) => setNewItemParentId(e.target.value)}
-                    className="h-7 text-xs bg-white border border-gray-200 rounded px-2 focus:outline-none text-gray-400 cursor-pointer hover:border-gray-300"
+                    className="h-7 w-16 text-xs bg-white border border-gray-200 rounded px-2 focus:outline-none text-gray-400 cursor-pointer hover:border-gray-300"
                 >
                     <option value="">关联</option>
-                    {backlogItems.map(b => (
-                        <option key={b.id} value={b.id}>
-                            {b.category === 'work' ? '💼' : b.category === 'growth' ? '🌱' : '生活'} {b.title}
-                        </option>
-                    ))}
+                    {backlogItems.filter(b => b.category === 'growth').length > 0 && (
+                        <optgroup label="🌱 成长">
+                            {backlogItems.filter(b => b.category === 'growth').map(b => (
+                                <option key={b.id} value={b.id}>{b.title}</option>
+                            ))}
+                        </optgroup>
+                    )}
+                    {backlogItems.filter(b => b.category === 'work').length > 0 && (
+                        <optgroup label="💼 工作">
+                            {backlogItems.filter(b => b.category === 'work').map(b => (
+                                <option key={b.id} value={b.id}>{b.title}</option>
+                            ))}
+                        </optgroup>
+                    )}
+                    {backlogItems.filter(b => b.category === 'life').length > 0 && (
+                        <optgroup label="🏠 生活">
+                            {backlogItems.filter(b => b.category === 'life').map(b => (
+                                <option key={b.id} value={b.id}>{b.title}</option>
+                            ))}
+                        </optgroup>
+                    )}
                 </select>
                 <select
                     value={activeTab}
@@ -797,14 +813,30 @@ export function MainContent() {
                 <select
                     value={quickLogParentId}
                     onChange={(e) => setQuickLogParentId(e.target.value)}
-                    className="h-7 text-xs bg-white border border-gray-200 rounded px-2 focus:outline-none text-gray-400 cursor-pointer hover:border-gray-300"
+                    className="h-7 w-16 text-xs bg-white border border-gray-200 rounded px-2 focus:outline-none text-gray-400 cursor-pointer hover:border-gray-300"
                 >
                     <option value="">关联</option>
-                    {backlogItems.map(b => (
-                        <option key={b.id} value={b.id}>
-                            {b.category === 'work' ? '💼' : b.category === 'growth' ? '🌱' : '生活'} {b.title}
-                        </option>
-                    ))}
+                    {backlogItems.filter(b => b.category === 'growth').length > 0 && (
+                        <optgroup label="🌱 成长">
+                            {backlogItems.filter(b => b.category === 'growth').map(b => (
+                                <option key={b.id} value={b.id}>{b.title}</option>
+                            ))}
+                        </optgroup>
+                    )}
+                    {backlogItems.filter(b => b.category === 'work').length > 0 && (
+                        <optgroup label="💼 工作">
+                            {backlogItems.filter(b => b.category === 'work').map(b => (
+                                <option key={b.id} value={b.id}>{b.title}</option>
+                            ))}
+                        </optgroup>
+                    )}
+                    {backlogItems.filter(b => b.category === 'life').length > 0 && (
+                        <optgroup label="🏠 生活">
+                            {backlogItems.filter(b => b.category === 'life').map(b => (
+                                <option key={b.id} value={b.id}>{b.title}</option>
+                            ))}
+                        </optgroup>
+                    )}
                 </select>
                 <select
                     value={quickLogCategory}
