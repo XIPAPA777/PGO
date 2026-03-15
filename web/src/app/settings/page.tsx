@@ -95,11 +95,11 @@ export default function SettingsPage() {
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-700">当前用户 ID</label>
             <div className="flex gap-2">
-                <input 
-                    type="text" 
+                <input
+                    type="text"
                     value={formData.userId}
                     onChange={(e) => setFormData({...formData, userId: e.target.value})}
-                    className="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                    className="flex-1 bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500"
                     placeholder="例如: baoxiaoxi"
                 />
             </div>
@@ -123,33 +123,33 @@ export default function SettingsPage() {
           <div className="space-y-4">
             <div className="space-y-1">
                 <label className="text-sm font-medium text-gray-700">App ID</label>
-                <input 
-                    type="text" 
+                <input
+                    type="text"
                     value={formData.larkAppId}
                     onChange={(e) => setFormData({...formData, larkAppId: e.target.value})}
-                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 font-mono"
+                    className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 font-mono"
                     placeholder="cli_..."
                 />
             </div>
 
             <div className="space-y-1">
                 <label className="text-sm font-medium text-gray-700">App Secret</label>
-                <input 
-                    type="password" 
+                <input
+                    type="password"
                     value={formData.larkAppSecret}
                     onChange={(e) => setFormData({...formData, larkAppSecret: e.target.value})}
-                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 font-mono"
+                    className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 font-mono"
                     placeholder="****************"
                 />
             </div>
 
             <div className="space-y-1">
                 <label className="text-sm font-medium text-gray-700">Base Token (多维表格 ID)</label>
-                <input 
-                    type="text" 
+                <input
+                    type="text"
                     value={formData.larkBaseToken}
                     onChange={(e) => setFormData({...formData, larkBaseToken: e.target.value})}
-                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 font-mono"
+                    className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 font-mono"
                     placeholder="从多维表格 URL 中获取"
                 />
                 <p className="text-xs text-gray-400">
@@ -173,11 +173,11 @@ export default function SettingsPage() {
           <div className="space-y-4">
             <div className="space-y-1">
                 <label className="text-sm font-medium text-gray-700">Kimi API Key</label>
-                <input 
-                    type="password" 
+                <input
+                    type="password"
                     value={formData.kimiApiKey}
                     onChange={(e) => setFormData({...formData, kimiApiKey: e.target.value})}
-                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 font-mono"
+                    className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500 font-mono"
                     placeholder="sk-..."
                 />
                 <p className="text-xs text-gray-400">

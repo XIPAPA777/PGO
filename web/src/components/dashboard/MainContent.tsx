@@ -451,22 +451,22 @@ export function MainContent() {
       return { start, end }
   }
 
-  // 从标题中解析时间段，如 "15:00-16:00 开发PGO" -> { start: "15:00", end: "16:00", cleanTitle: "开发PGO" }
-  const parseTimeFromTitle = (title: string): { start: string, end: string, cleanTitle: string } | null => {
+  // 从标题中解析时间段，如 "15:00-16:00 开发PGO" -> { start: "15:00", end: "16:00" }
+  // 注意：不修改标题，只提取时间
+  const parseTimeFromTitle = (title: string): { start: string, end: string } | null => {
       // 匹配开头的时间段: "HH:MM-HH:MM" 或 "H:MM-H:MM"，支持中文冒号和各种分隔符
-      const pattern = /^(\d{1,2}[：:]\d{2})\s*[-~—]\s*(\d{1,2}[：:]\d{2})\s+(.+)$/
+      const pattern = /^(\d{1,2}[：:]\d{2})\s*[-~—]\s*(\d{1,2}[：:]\d{2})/
       const match = title.trim().match(pattern)
       if (!match) return null
 
       const start = match[1].replace(/：/g, ':')
       const end = match[2].replace(/：/g, ':')
-      const cleanTitle = match[3].trim()
 
       // 验证时间格式
       const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/
       if (!timeRegex.test(start) || !timeRegex.test(end)) return null
 
-      return { start, end, cleanTitle }
+      return { start, end }
   }
 
   const [newItemParentId, setNewItemParentId] = useState<string>('')
@@ -475,56 +475,40 @@ export function MainContent() {
     e.preventDefault()
     if (!newItemTitle.trim()) return
 
-    let title = newItemTitle.trim()
+    const title = newItemTitle.trim()
     let plannedTime = newItemStartTime && newItemEndTime ? `${newItemStartTime}-${newItemEndTime}` : undefined
 
-    // 如果用户没有填写计划时间，尝试从标题中解析
+    // 如果用户没有填写计划时间，尝试从标题中解析（不修改标题）
     if (!plannedTime) {
       const parsed = parseTimeFromTitle(title)
       if (parsed) {
         plannedTime = `${parsed.start}-${parsed.end}`
-        title = parsed.cleanTitle
       }
     }
 
-    const newId = addItem(title, activeTab, 'todo', plannedTime, undefined, undefined, newItemParentId || undefined)
+    addItem(title, activeTab, 'todo', plannedTime, undefined, undefined, newItemParentId || undefined)
 
-    // 计算新任务的 sortOrder，使其按时间正确插入到已有排序中
-    const currentItems = useTodoStore.getState().items
-    const todayItemsWithOrder = currentItems.filter(i =>
-      i.status !== 'backlog' &&
-      !i.isUnplanned &&
-      i.sortOrder !== undefined &&
-      i.sortOrder !== null &&
-      i.id !== newId
-    ).sort((a, b) => a.sortOrder! - b.sortOrder!)
+    // 新增后，按时间重新排序所有今日任务
+    setTimeout(() => {
+      const currentItems = useTodoStore.getState().items
+      const today = new Date()
+      const todayTaskItems = currentItems.filter(i =>
+        i.status !== 'backlog' &&
+        !i.isUnplanned &&
+        (i.status !== 'done' || (i.completedAt && isSameDay(i.completedAt, today)))
+      )
 
-    if (todayItemsWithOrder.length > 0) {
-      const newTime = parseStartTime(plannedTime)
-      // 找到新任务应该插入的位置
-      let insertIndex = todayItemsWithOrder.length
-      for (let i = 0; i < todayItemsWithOrder.length; i++) {
-        const existingTime = parseStartTime(todayItemsWithOrder[i].plannedTime)
-        if (existingTime > newTime) {
-          insertIndex = i
-          break
-        }
-      }
+      // 按时间排序
+      const sorted = [...todayTaskItems].sort((a, b) => {
+        const timeA = parseStartTime(a.plannedTime)
+        const timeB = parseStartTime(b.plannedTime)
+        if (timeA !== timeB) return timeA - timeB
+        return a.createdAt - b.createdAt
+      })
 
-      // 计算 sortOrder
-      let newSortOrder: number
-      if (insertIndex === 0) {
-        newSortOrder = todayItemsWithOrder[0].sortOrder! - 1
-      } else if (insertIndex === todayItemsWithOrder.length) {
-        newSortOrder = todayItemsWithOrder[todayItemsWithOrder.length - 1].sortOrder! + 1
-      } else {
-        const prevOrder = todayItemsWithOrder[insertIndex - 1].sortOrder!
-        const nextOrder = todayItemsWithOrder[insertIndex].sortOrder!
-        newSortOrder = (prevOrder + nextOrder) / 2
-      }
-
-      updateItem(newId, { sortOrder: newSortOrder })
-    }
+      // 更新所有任务的 sortOrder
+      reorderTodayItems(sorted.map(i => i.id))
+    }, 0)
 
     setNewItemTitle('')
     setNewItemStartTime('')

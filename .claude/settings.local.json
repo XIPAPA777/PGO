@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__ide__getDiagnostics",
+      "Bash(cd /Users/baoxiaoxi/Documents/trae_projects/PGO/web && npm run build 2>&1 | head -50)",
+      "Bash(npm run dev)",
+      "Bash(npm run build 2>&1 | head -30)",
+      "Bash(pkill -f \"next dev\" 2>/dev/null; npm run dev)",
+      "Bash(cd /Users/baoxiaoxi/Documents/trae_projects/PGO/web && npx tsc --noEmit 2>&1 | head -30)",
+      "Bash(npx eslint src/components/dashboard/MainContent.tsx 2>&1 | head -20)",
+      "Bash(cd /Users/baoxiaoxi/Documents/trae_projects/PGO/web && npm run build 2>&1 | tail -20)",
+      "Bash(npx tsc --noEmit 2>&1)",
+      "Bash(sed -n '35p' /Users/baoxiaoxi/Documents/trae_projects/PGO/web/src/app/api/ai/analyze/route.ts | xxd | head -5)",
+      "Bash(npm run build 2>&1 | tail -15)",
+      "WebSearch",
+      "Bash(git add Prd.md web/src/app/api/ai/analyze/route.ts web/src/app/api/lark/test-connection/route.ts web/src/components/dashboard/MainContent.tsx)",
+      "Bash(git commit -m \"$\\(cat <<'EOF'\nfeat: V1.3 Release - Time Picker, AI Insight & UX Improvements\n\n1. TimeInput Component Rewrite:\n   - Direct numeric input \\(HH:MM format\\)\n   - Custom minimal time picker \\(replaces native picker\\)\n   - Low-saturation gray color scheme\n\n2. Quick Log Enhancement:\n   - Add \"Link to Backlog\" dropdown in Quick Log form\n   - Fix dropdown width constraint issue\n\n3. AI Insight Optimization:\n   - Shorter output \\(3 sections instead of 6\\)\n   - Consolidated deep insight \\(1 paragraph vs 3 sub-items\\)\n   - Friendlier tone \\(companion vs coach\\)\n\n4. Error UX Improvement:\n   - Lark 91403 error shows actionable Chinese guidance\nEOF\n\\)\")",
+      "Bash(git push origin main)",
+      "Bash(cd /Users/baoxiaoxi/Documents/trae_projects/PGO/web && npx vercel --prod 2>&1 | tail -20)",
+      "Bash(gh api repos/XIPAPA777/PGO/deployments --jq '.[0] | {environment: .environment, created_at: .created_at, state: .payload.state // \"pending\"}')",
+      "Bash(cd /Users/baoxiaoxi/Documents/trae_projects/PGO/web && npx tsc --noEmit 2>&1 | head -50)",
+      "Bash(npm run build 2>&1 | tail -30)",
+      "Bash(git add Prd.md web/src/components/dashboard/MainContent.tsx web/src/components/common/ConfirmDialog.tsx)",
+      "Bash(git commit -m \"$\\(cat <<'EOF'\nfeat: V1.4 Release - Today Plan UX Optimization\n\n1. Smart Sorting: Today's plans auto-sort by planned time \\(early→late\\), \n   tasks without time at bottom; manual drag reorder has higher priority\n2. Auto Category Switch: Selecting a backlog parent auto-switches category\n3. Delete Confirmation: Simple confirm dialog before deleting plans\n4. Title Time Parsing: Auto-parse time from title \\(e.g., \"15:00-16:00 Dev\"\\)\n   and fill planned time field\nEOF\n\\)\")",
+      "Bash(cd /Users/baoxiaoxi/Documents/trae_projects/PGO/web && npx vercel --prod 2>&1 | head -30)",
+      "Bash(npx vercel --prod --yes 2>&1)",
+      "Bash(npx vercel rm web --yes 2>&1)",
+      "Bash(gh api repos/XIPAPA777/PGO/commits/main --jq '.sha, .commit.message' 2>&1)",
+      "Bash(npm run build 2>&1 | tail -20)",
+      "Bash(cd /Users/baoxiaoxi/Documents/trae_projects/PGO/web && npm run build 2>&1 | tail -30)"
+    ]
+  }
+}

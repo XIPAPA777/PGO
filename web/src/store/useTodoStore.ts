@@ -14,6 +14,7 @@ export interface TodoItem {
   plannedTime?: string; // 新增：计划时间段 "14:00-15:00"
   targetDate?: string; // 新增：蓄水池目标日期 "2026-04"
   isUnplanned?: boolean; // 新增：是否为非计划任务
+  sortOrder?: number; // 新增：今日计划排序
   createdAt: number;
   completedAt?: number;
 }
@@ -54,6 +55,7 @@ interface TodoState {
   updateItemStatus: (id: string, status: TodoStatus) => void;
   updateItem: (id: string, updates: Partial<Omit<TodoItem, 'id' | 'createdAt'>>) => void; // New
   reorderItems: (items: TodoItem[]) => void; // New
+  reorderTodayItems: (itemIds: string[]) => void; // New: Reorder today's plan items
   toggleBacklog: () => void;
   deleteItem: (id: string) => void;
   
@@ -157,6 +159,18 @@ export const useTodoStore = create<TodoState>()(
             const otherItems = state.items.filter(i => !newItems.some(ni => ni.id === i.id));
             return { items: [...otherItems, ...newItems] };
         });
+      },
+
+      reorderTodayItems: (itemIds) => {
+        set((state) => ({
+          items: state.items.map(item => {
+            const index = itemIds.indexOf(item.id);
+            if (index !== -1) {
+              return { ...item, sortOrder: index };
+            }
+            return item;
+          })
+        }));
       },
 
       toggleBacklog: () => set((state) => ({ isBacklogOpen: !state.isBacklogOpen })),
