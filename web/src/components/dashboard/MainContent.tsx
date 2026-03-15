@@ -6,6 +6,7 @@ import { CheckCircle, Circle, Trash2, Plus, Clock, Sun, X, Edit2, Sparkles, Tag,
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
 import { DailyReviewModal } from './DailyReviewModal'
+import { ConfirmDialog } from '../common/ConfirmDialog'
 
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable'
@@ -267,6 +268,14 @@ export function MainContent() {
 
   // Filter for today's items
   const today = new Date();
+  // Helper: parse plannedTime start time to minutes (e.g., "09:30-10:00" -> 570)
+  const parseStartTime = (plannedTime?: string): number => {
+    if (!plannedTime) return Number.MAX_SAFE_INTEGER;
+    const match = plannedTime.match(/^(\d{1,2}):(\d{2})/);
+    if (!match) return Number.MAX_SAFE_INTEGER;
+    return parseInt(match[1]) * 60 + parseInt(match[2]);
+  };
+
   const todayItems = items.filter(i => {
     if (i.status === 'backlog') return false;
     if (i.isUnplanned) return false;
@@ -276,13 +285,30 @@ export function MainContent() {
     }
     return true;
   }).sort((a, b) => {
-    // Sort by sortOrder first, then by createdAt
-    const orderA = a.sortOrder ?? Number.MAX_SAFE_INTEGER;
-    const orderB = b.sortOrder ?? Number.MAX_SAFE_INTEGER;
-    if (orderA !== orderB) return orderA - orderB;
+    // 1. 用户手动拖拽排序优先级最高
+    const hasOrderA = a.sortOrder !== undefined && a.sortOrder !== null;
+    const hasOrderB = b.sortOrder !== undefined && b.sortOrder !== null;
+    if (hasOrderA && hasOrderB) {
+      return a.sortOrder! - b.sortOrder!;
+    }
+    if (hasOrderA) return -1;
+    if (hasOrderB) return 1;
+
+    // 2. 无手动排序时，按 plannedTime 排序（早的在前，无时间的在后）
+    const timeA = parseStartTime(a.plannedTime);
+    const timeB = parseStartTime(b.plannedTime);
+    if (timeA !== timeB) return timeA - timeB;
+
+    // 3. 同时间或都无时间，按创建时间
     return a.createdAt - b.createdAt;
   });
   const backlogItems = items.filter(i => i.status === 'backlog')
+
+  // Helper: get category from a backlog/parent item by ID
+  const getParentCategory = (parentId: string): Category | null => {
+    const parent = backlogItems.find(b => b.id === parentId);
+    return parent?.category ?? null;
+  };
 
   // DnD sensors
   const sensors = useSensors(
@@ -363,6 +389,22 @@ export function MainContent() {
   const [editLogCategory, setEditLogCategory] = useState<Category>('growth') // To update task's category
   const [editingLogTaskId, setEditingLogTaskId] = useState<string | null>(null) // To track which task is being edited via log
 
+  // Delete Confirmation State
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+  const [deleteConfirmTitle, setDeleteConfirmTitle] = useState('')
+
+  const handleDeleteClick = (item: TodoItem) => {
+    setDeleteConfirmId(item.id);
+    setDeleteConfirmTitle(item.title);
+  };
+
+  const handleConfirmDelete = () => {
+    if (deleteConfirmId) {
+      deleteItem(deleteConfirmId);
+      setDeleteConfirmId(null);
+    }
+  };
+
   const handleStartEditLog = (log: any, task: any) => {
     setEditingLogId(log.id)
     setEditLogStart(log.startTimeStr)
@@ -398,15 +440,33 @@ export function MainContent() {
       const clean = range.replace(/：/g, ':').replace(/[~—]/g, '-').replace(/\s+/g, '')
       const parts = clean.split('-')
       if (parts.length !== 2) return null
-      
+
       const start = parts[0]
       const end = parts[1]
-      
+
       // Simple validation regex for H:mm or HH:mm
       const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/
       if (!timeRegex.test(start) || !timeRegex.test(end)) return null
-      
+
       return { start, end }
+  }
+
+  // 从标题中解析时间段，如 "15:00-16:00 开发PGO" -> { start: "15:00", end: "16:00", cleanTitle: "开发PGO" }
+  const parseTimeFromTitle = (title: string): { start: string, end: string, cleanTitle: string } | null => {
+      // 匹配开头的时间段: "HH:MM-HH:MM" 或 "H:MM-H:MM"，支持中文冒号和各种分隔符
+      const pattern = /^(\d{1,2}[：:]\d{2})\s*[-~—]\s*(\d{1,2}[：:]\d{2})\s+(.+)$/
+      const match = title.trim().match(pattern)
+      if (!match) return null
+
+      const start = match[1].replace(/：/g, ':')
+      const end = match[2].replace(/：/g, ':')
+      const cleanTitle = match[3].trim()
+
+      // 验证时间格式
+      const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/
+      if (!timeRegex.test(start) || !timeRegex.test(end)) return null
+
+      return { start, end, cleanTitle }
   }
 
   const [newItemParentId, setNewItemParentId] = useState<string>('')
@@ -414,8 +474,58 @@ export function MainContent() {
   const handleQuickAdd = (e: React.FormEvent) => {
     e.preventDefault()
     if (!newItemTitle.trim()) return
-    const plannedTime = newItemStartTime && newItemEndTime ? `${newItemStartTime}-${newItemEndTime}` : undefined
-    addItem(newItemTitle, activeTab, 'todo', plannedTime, undefined, undefined, newItemParentId || undefined)
+
+    let title = newItemTitle.trim()
+    let plannedTime = newItemStartTime && newItemEndTime ? `${newItemStartTime}-${newItemEndTime}` : undefined
+
+    // 如果用户没有填写计划时间，尝试从标题中解析
+    if (!plannedTime) {
+      const parsed = parseTimeFromTitle(title)
+      if (parsed) {
+        plannedTime = `${parsed.start}-${parsed.end}`
+        title = parsed.cleanTitle
+      }
+    }
+
+    const newId = addItem(title, activeTab, 'todo', plannedTime, undefined, undefined, newItemParentId || undefined)
+
+    // 计算新任务的 sortOrder，使其按时间正确插入到已有排序中
+    const currentItems = useTodoStore.getState().items
+    const todayItemsWithOrder = currentItems.filter(i =>
+      i.status !== 'backlog' &&
+      !i.isUnplanned &&
+      i.sortOrder !== undefined &&
+      i.sortOrder !== null &&
+      i.id !== newId
+    ).sort((a, b) => a.sortOrder! - b.sortOrder!)
+
+    if (todayItemsWithOrder.length > 0) {
+      const newTime = parseStartTime(plannedTime)
+      // 找到新任务应该插入的位置
+      let insertIndex = todayItemsWithOrder.length
+      for (let i = 0; i < todayItemsWithOrder.length; i++) {
+        const existingTime = parseStartTime(todayItemsWithOrder[i].plannedTime)
+        if (existingTime > newTime) {
+          insertIndex = i
+          break
+        }
+      }
+
+      // 计算 sortOrder
+      let newSortOrder: number
+      if (insertIndex === 0) {
+        newSortOrder = todayItemsWithOrder[0].sortOrder! - 1
+      } else if (insertIndex === todayItemsWithOrder.length) {
+        newSortOrder = todayItemsWithOrder[todayItemsWithOrder.length - 1].sortOrder! + 1
+      } else {
+        const prevOrder = todayItemsWithOrder[insertIndex - 1].sortOrder!
+        const nextOrder = todayItemsWithOrder[insertIndex].sortOrder!
+        newSortOrder = (prevOrder + nextOrder) / 2
+      }
+
+      updateItem(newId, { sortOrder: newSortOrder })
+    }
+
     setNewItemTitle('')
     setNewItemStartTime('')
     setNewItemEndTime('')
@@ -591,7 +701,17 @@ export function MainContent() {
                 />
                 <select
                     value={newItemParentId}
-                    onChange={(e) => setNewItemParentId(e.target.value)}
+                    onChange={(e) => {
+                        const parentId = e.target.value;
+                        setNewItemParentId(parentId);
+                        // Auto-switch category when selecting parent
+                        if (parentId) {
+                            const parentCategory = getParentCategory(parentId);
+                            if (parentCategory) {
+                                setActiveTab(parentCategory);
+                            }
+                        }
+                    }}
                     className="h-7 w-16 text-xs bg-white border border-gray-200 rounded px-2 focus:outline-none text-gray-400 cursor-pointer hover:border-gray-300"
                 >
                     <option value="">关联</option>
@@ -691,7 +811,17 @@ export function MainContent() {
                                     <LinkIcon className="w-3 h-3 text-gray-400" />
                                     <select
                                         value={editPlanParentId || ''}
-                                        onChange={e => setEditPlanParentId(e.target.value || null)}
+                                        onChange={e => {
+                                            const parentId = e.target.value || null;
+                                            setEditPlanParentId(parentId);
+                                            // Auto-switch category when selecting parent
+                                            if (parentId) {
+                                                const parentCategory = getParentCategory(parentId);
+                                                if (parentCategory) {
+                                                    setEditPlanCategory(parentCategory);
+                                                }
+                                            }
+                                        }}
                                         className="text-xs bg-gray-50 rounded px-2 py-1 border-none focus:outline-none focus:ring-1 focus:ring-indigo-500/20 text-gray-600 max-w-[200px]"
                                     >
                                         <option value="">关联蓄水池目标...</option>
@@ -773,8 +903,8 @@ export function MainContent() {
                             >
                                 <Edit2 className="w-4 h-4" />
                             </button>
-                            <button 
-                                onClick={() => deleteItem(item.id)}
+                            <button
+                                onClick={() => handleDeleteClick(item)}
                                 className="p-2 text-gray-300 hover:text-red-500 transition-all"
                                 title="删除"
                             >
@@ -812,7 +942,17 @@ export function MainContent() {
                 />
                 <select
                     value={quickLogParentId}
-                    onChange={(e) => setQuickLogParentId(e.target.value)}
+                    onChange={(e) => {
+                        const parentId = e.target.value;
+                        setQuickLogParentId(parentId);
+                        // Auto-switch category when selecting parent
+                        if (parentId) {
+                            const parentCategory = getParentCategory(parentId);
+                            if (parentCategory) {
+                                setQuickLogCategory(parentCategory);
+                            }
+                        }
+                    }}
                     className="h-7 w-16 text-xs bg-white border border-gray-200 rounded px-2 focus:outline-none text-gray-400 cursor-pointer hover:border-gray-300"
                 >
                     <option value="">关联</option>
@@ -1010,6 +1150,16 @@ export function MainContent() {
              </div>
          </div>
        )}
-     </div>
-   )
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={!!deleteConfirmId}
+        onClose={() => setDeleteConfirmId(null)}
+        onConfirm={handleConfirmDelete}
+        message={`确定删除「${deleteConfirmTitle}」？`}
+        confirmText="删除"
+        variant="danger"
+      />
+    </div>
+  )
 }
